@@ -193,11 +193,11 @@ def forward_propagate(network, row):
 
 
 
- queue_c =Queue(maxsize =1000000)
+#  queue_c =Queue(maxsize =1000000)
 
 
-t1 = threading.Thread(target=child1_server, args=queue_c) 
-t2 = threading.Thread(target=child2_server, args=queue_c) 
+# t1 = threading.Thread(target=child1_server, args=queue_c) 
+# t2 = threading.Thread(target=child2_server, args=queue_c) 
 
   for layer in network:
     new_inputs = []
