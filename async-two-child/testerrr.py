@@ -1,4 +1,3 @@
-
 # Backprop on the Seeds Dataset
 from random import seed
 from random import randrange
@@ -11,9 +10,13 @@ import asyncio
 from aiohttp import ClientSession
 import json
 import math 
+import time
+import tracemalloc
 
 busy1 =0
 busy2 =0
+totaltime1=0
+totaltime2=0
 #queue=[]
  
 # Load a CSV file
@@ -96,40 +99,41 @@ def evaluate_algorithm(dataset, algorithm, n_folds, *args):
 	return scores
 
 
+
+
 async def run_program(neuron,inputs,queue, session):
 	global busy2
 	global busy1
+	global totaltime1
+	global totaltime2
 	#global queue
 	if(busy1==0):
 			busy1=1
-			print("in node 1")
+			start1= time.time()
+			# print("in node 1")
 			url = 'http://127.0.0.1:5001/forward'
 			PARAMS = {}
 			PARAMS['weights']=neuron['weights']
+
 			
 			PARAMS['inputs']=inputs
-			print("ye dekhoooo inputssss", inputs)
+			# print("ye dekhoooo inputssss", inputs)
 			async with session.get(url=url, params= PARAMS) as resp:
 				busy1=0
 				result = await resp.text()
-				print("blaaaalalallaal",result)
-			#await asyncio.sleep(2)	
-			# r = requests.get(url=url, params= PARAMS)
-			#r = await session.request(method='GET', url=url, params= PARAMS)
-			# r = await session.get( url=url, params= PARAMS)
-			# result = await r.json()
-			# print("blaaaalalallaal",result)
-
-			
+				# print("blaaaalalallaal",result)
+			#asyncio.sleep(1)		
 			data = float(result)
 			queue.pop(queue.index(neuron))
 			neuron['output'] = data
+			totaltime1 = totaltime1 + time.time() - start1
 			return data
 
 
 	elif(busy2==0):
 			busy2=1
-			print("in node 2")
+			start2= time.time()
+			# print("in node 2")
 			url = 'http://127.0.0.1:5002/forward'
 			PARAMS = {}
 			PARAMS['weights']=neuron['weights']
@@ -137,64 +141,36 @@ async def run_program(neuron,inputs,queue, session):
 			async with session.get(url=url, params= PARAMS) as resp:
 				busy2=0
 				result = await resp.text()
-				print("blaaaalalallaal",result)
+				# print("blaaaalalallaal",result)
 
-			# r = requests.get(url=url, params= PARAMS)
-			# r = await session.request(method='GET', url=url, params= PARAMS)
-			# result = await r.json()
-			# print("blaaaalalallaal",result)
 			data = float(result)
 			queue.pop(queue.index(neuron))
 			neuron['output'] = data
+			totaltime2 = totaltime2 + time.time() - start2
 			
 			return data
 	
 
-	else:
-		print("Both busy, wait") 
-		
-
-
-	
-async def kuchtokaro(queue,inputs):
-		# new_inputs=[]
-		#global queue
+async def asynch_two_server(queue,inputs):
 		while(queue):
 		
-			async with ClientSession() as session:
-			# 	# for i in range(len(queue)):
-			# 	# 	queue[i]['output'] = await asyncio.gather(*[run_program(queue[i],inputs, session)])
-			# 	# 	new_inputs.append(queue[i]['output'])
-			# 	# await asyncio.gather(*[run_program(queue[i],inputs, session)] for i in range(len(queue)))
-				# await asyncio.gather(*[run_program(queue[i],inputs, session) for i in range(len(queue))])
-				print("ye queue jaaa rahahahahahah hhhhh", queue)
+			async with ClientSession() as session:			
 				await asyncio.gather(*[run_program(i,inputs, queue, session) for i in queue])
 
-
-		
-
-		print("goingg outaaaaa here ")
-
-		# return new_inputs   
 
 
 # Forward propagate input to a network output
 def forward_propagate(network, row):
 
 	inputs = row
-	#inputs = [0 if math.isnan(x) else x for x in inputs]
-
 	inputs=[0 if v is None else v for v in inputs]
-	print("this is a rowwww", len(row))
-	# global queue
 	for layer in network:
 		new_inputs = []
 		queue=[]
 		for neuron in layer:
 			queue.append(neuron)
 
-
-		asyncio.run(kuchtokaro(queue, inputs))
+		asyncio.run(asynch_two_server(queue, inputs))
 
 		for neuron in layer:
 			if(neuron['output']):
@@ -203,9 +179,7 @@ def forward_propagate(network, row):
 				new_inputs.append(0)
 					
 
-		inputs = new_inputs
-		print("ye dekhooo nayyeyeyeyeyey inputs", new_inputs)
-
+		inputs = new_inputs		
 	return inputs
  
 # Calculate the derivative of an neuron output
@@ -254,11 +228,16 @@ def train_network(network, train, l_rate, n_epoch, n_outputs):
 	print('Train network')
  
 # Initialize a network
-def initialize_network(n_inputs, n_hidden, n_outputs):
+def initialize_network(n_inputs, n_hidden1, n_outputs):
+	
+
 	network = list()
-	hidden_layer = [{'weights':[random() for i in range(n_inputs + 1)]} for i in range(n_hidden)]
-	network.append(hidden_layer)
-	output_layer = [{'weights':[random() for i in range(n_hidden + 1)]} for i in range(n_outputs)]
+	hidden_layer1 = [{'weights':[random() for i in range(n_inputs + 1)]} for i in range(n_hidden1)]
+	network.append(hidden_layer1)
+	
+	#hidden_layer2 = [{'weights':[random() for i in range(n_hidden1 + 1)]} for i in range(n_hidden1)]
+	#network.append(hidden_layer2)
+	output_layer = [{'weights':[random() for i in range(n_hidden1 + 1)]} for i in range(n_outputs)]
 	network.append(output_layer)
 	return network
  
@@ -280,7 +259,11 @@ def back_propagation(train, test, l_rate, n_epoch, n_hidden):
 	return(predictions)
  
 # Test Backprop on Seeds dataset
+
 seed(1)
+memoryuse=0
+tracemalloc.start()
+current1, peak1 = tracemalloc.get_traced_memory()
 # load and prepare data
 filename = 'seeds_dataset.csv'
 dataset = load_csv(filename)
@@ -292,10 +275,23 @@ str_column_to_int(dataset, len(dataset[0])-1)
 minmax = dataset_minmax(dataset)
 normalize_dataset(dataset, minmax)
 # evaluate algorithm
-n_folds = 2
+n_folds = 5
 l_rate = 0.3
-n_epoch = 5
-n_hidden = 3
+# n_epoch = 10
+# n_hidden = 3
+n_hidden,n_epoch = map(int,input().split())
+start_time = time.time()
 scores = evaluate_algorithm(dataset, back_propagation, n_folds, l_rate, n_epoch, n_hidden)
 print('Scores: %s' % scores)
 print('Mean Accuracy: %.3f%%' % (sum(scores)/float(len(scores))))
+
+print("time taken", time.time() - start_time)
+print("time 1",totaltime1)
+print("time 2",totaltime2)
+res = requests.get(url='http://127.0.0.1:5001/getmemory')
+res2 = requests.get(url='http://127.0.0.1:5002/getmemory')
+
+print(max(float(res.text), float(res2.text)))
+current2, peak2 = tracemalloc.get_traced_memory()
+memoryuse = memoryuse + ((current2-current1)/ 10**3)
+print(memoryuse)
