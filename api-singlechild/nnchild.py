@@ -6,6 +6,8 @@ from random import random
 from csv import reader
 from math import exp
 import requests
+import time
+import tracemalloc
  
 # Load a CSV file
 def load_csv(filename):
@@ -94,7 +96,8 @@ def forward_propagate(network, row):
 		new_inputs = []
 		for neuron in layer:
 
-			url = 'http://127.0.0.1:5001/forward'
+			#send a request to calculate the activation and sigmoid at the web server URL
+			url = 'http://127.0.0.1:5003/forward'
 			PARAMS = {}
 			PARAMS['weights']=neuron['weights']
 			PARAMS['inputs']=inputs
@@ -153,11 +156,16 @@ def train_network(network, train, l_rate, n_epoch, n_outputs):
 	print('Train network')
  
 # Initialize a network
-def initialize_network(n_inputs, n_hidden, n_outputs):
+def initialize_network(n_inputs, n_hidden1, n_outputs):
+	
+
 	network = list()
-	hidden_layer = [{'weights':[random() for i in range(n_inputs + 1)]} for i in range(n_hidden)]
-	network.append(hidden_layer)
-	output_layer = [{'weights':[random() for i in range(n_hidden + 1)]} for i in range(n_outputs)]
+	hidden_layer1 = [{'weights':[random() for i in range(n_inputs + 1)]} for i in range(n_hidden1)]
+	network.append(hidden_layer1)
+	
+	hidden_layer2 = [{'weights':[random() for i in range(n_hidden1 + 1)]} for i in range(n_hidden1)]
+	network.append(hidden_layer2)
+	output_layer = [{'weights':[random() for i in range(n_hidden1 + 1)]} for i in range(n_outputs)]
 	network.append(output_layer)
 	return network
  
@@ -179,8 +187,12 @@ def back_propagation(train, test, l_rate, n_epoch, n_hidden):
 	return(predictions)
  
 # Test Backprop on Seeds dataset
+
 seed(1)
 # load and prepare data
+memoryuse=0
+tracemalloc.start()
+current1, peak1 = tracemalloc.get_traced_memory()
 filename = 'seeds_dataset.csv'
 dataset = load_csv(filename)
 for i in range(len(dataset[0])-1):
@@ -193,8 +205,17 @@ normalize_dataset(dataset, minmax)
 # evaluate algorithm
 n_folds = 5
 l_rate = 0.3
-n_epoch = 5
-n_hidden = 3
+# n_epoch = 10
+# n_hidden = 3
+n_hidden,n_epoch = map(int,input().split())
+start_time = time.time()
 scores = evaluate_algorithm(dataset, back_propagation, n_folds, l_rate, n_epoch, n_hidden)
 print('Scores: %s' % scores)
 print('Mean Accuracy: %.3f%%' % (sum(scores)/float(len(scores))))
+
+print("time taken", time.time() - start_time)
+res = requests.get(url='http://127.0.0.1:5003/getmemory')
+print(res.text)
+current2, peak2 = tracemalloc.get_traced_memory()
+memoryuse = memoryuse + ((current2-current1)/ 10**3)
+print(memoryuse)
